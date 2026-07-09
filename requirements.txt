@@ -1,0 +1,17 @@
+# --- Web app (always needed) ---
+flask>=3.0
+
+# --- Analysis core (already in your original script) ---
+numpy
+pandas
+matplotlib
+scipy
+
+# --- Real segmentation backend (needed to run on actual footage) ---
+# If any of these (or the trained model file) are missing, the app
+# automatically falls back to a built-in DEMO analyzer so the UI still works.
+opencv-python
+torch
+segmentation-models-pytorch
+albumentations
+pytesseract        # also requires the Tesseract-OCR binary installed on the OS
