@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airbag Kinematics Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  :root{
+    /* Autoliv brand palette: Dark Ultramarine #002D6B, Silver #D8D8D8,
+       Philippine Gray #8C8C8C. Rendered as a clean white + blue light theme. */
+    --autoliv-blue:#002D6B;     /* signature dark ultramarine */
+    --autoliv-blue-2:#0A3F8C;   /* lifted blue */
+    --autoliv-blue-br:#1E5FBF;  /* interactive blue */
+    --silver:#D8D8D8;           /* light silver (brand) */
+    --gray:#8C8C8C;             /* philippine gray (brand) */
+
+    --bg:#EEF3FA;               /* soft blue-tinted white ground */
+    --bg-2:#FFFFFF;
+    --panel:#FFFFFF;            /* white cards */
+    --panel-2:#F2F6FC;          /* input wells / insets */
+    --line:#DCE6F4;             /* light hairline borders */
+    --line-2:#C2D3EC;           /* stronger divider */
+
+    --ink:#0C2447;              /* primary text = deep navy */
+    --muted:#5A6E90;            /* secondary blue-gray */
+    --faint:#8AA0C0;            /* tertiary */
+
+    --accent:#0A4DA8;           /* primary actions = Autoliv blue */
+    --accent-soft:#1E5FBF;
+    --silver-ink:#1B3766;       /* headings on white */
+
+    /* functional data colors, tuned to read on white */
+    --c-disp:#1E7FD6;           /* displacement (blue) */
+    --c-vel:#E23B4E;            /* velocity (red) */
+    --c-drop:#E0922A;           /* drop (amber) */
+    --c-area:#7A52D6;           /* area (violet) */
+    --green:#1FA463;
+    --red:#E23B4E;
+
+    --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+    --sans:"Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;color:var(--ink);font-family:var(--sans)}
+  body{padding:0 20px 80px;
+    background:
+      radial-gradient(1100px 560px at 85% -12%, rgba(30,95,191,.10), transparent 60%),
+      radial-gradient(900px 500px at -5% 0%, rgba(0,45,107,.08), transparent 55%),
+      linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 42%);
+    background-attachment:fixed;min-height:100vh}
+  a{color:var(--accent)}
+
+  header{
+    max-width:1240px;margin:0 auto;padding:24px 0 18px;
+    border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+  .brand{display:flex;align-items:center;gap:16px}
+  .logo-mark{width:38px;height:38px;border-radius:9px;flex:none;
+    background:linear-gradient(145deg,var(--autoliv-blue-br),var(--autoliv-blue));
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px rgba(0,45,107,.28),inset 0 1px 0 rgba(255,255,255,.25)}
+  .logo-mark svg{width:22px;height:22px}
+  .brand .txt h1{font-size:18px;font-weight:700;letter-spacing:.2px;margin:0;
+    line-height:1.1;color:var(--autoliv-blue)}
+  .brand .txt .tag{font-family:var(--mono);font-size:10.5px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:2.5px;margin-top:3px}
+  .backend{font-family:var(--mono);font-size:11px;color:var(--muted);
+    border:1px solid var(--line-2);padding:6px 12px;border-radius:20px;
+    background:#fff;display:flex;align-items:center;gap:7px;
+    box-shadow:0 1px 3px rgba(12,36,71,.05)}
+  .backend::before{content:"";width:7px;height:7px;border-radius:50%;
+    background:var(--green);box-shadow:0 0 6px rgba(31,164,99,.6)}
+  .backend.demo::before{background:var(--c-area);box-shadow:0 0 6px rgba(122,82,214,.5)}
+  .backend b{color:var(--accent);font-weight:600}
+  .backend.demo b{color:var(--c-area)}
+
+  .wrap{max-width:1240px;margin:22px auto 0;display:grid;
+    grid-template-columns:340px 1fr;gap:22px;align-items:start}
+  @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 4px 18px rgba(12,36,71,.06)}
+  .panel h2{font-family:var(--mono);font-size:11px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--silver-ink);margin:0;padding:16px 18px;
+    border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .panel h2::before{content:"";width:3px;height:13px;border-radius:2px;
+    background:var(--accent)}
+  .panel .body{padding:18px}
+
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;
+    font-weight:500}
+  label:first-child{margin-top:0}
+  input,select{width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);font-family:var(--mono);font-size:13px;padding:9px 11px;
+    border-radius:8px;outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus,select:focus{border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(46,111,214,.18)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .drop{margin-top:4px;border:1.5px dashed var(--line-2);border-radius:11px;
+    padding:24px 14px;text-align:center;cursor:pointer;transition:.18s;
+    background:var(--panel-2)}
+  .drop:hover,.drop.over{border-color:var(--accent);
+    background:rgba(46,111,214,.12)}
+  .drop .big{font-size:13px;color:var(--ink);font-weight:500}
+  .drop .small{font-size:11px;color:var(--faint);margin-top:5px;font-family:var(--mono)}
+  .drop .fname{color:var(--accent-soft);font-family:var(--mono);font-size:12px;
+    margin-top:8px;word-break:break-all}
+
+  button.run{width:100%;margin-top:18px;
+    background:linear-gradient(180deg,var(--accent-soft),var(--autoliv-blue));
+    color:#fff;border:1px solid rgba(0,45,107,.25);font-family:var(--mono);
+    font-weight:700;font-size:13px;letter-spacing:.5px;padding:13px;
+    border-radius:9px;cursor:pointer;text-transform:uppercase;
+    box-shadow:0 6px 16px rgba(10,77,168,.28)}
+  button.run:disabled{background:var(--panel-2);color:var(--faint);
+    border-color:var(--line);box-shadow:none;cursor:not-allowed}
+  button.run:not(:disabled):hover{filter:brightness(1.08);
+    box-shadow:0 8px 22px rgba(10,77,168,.35)}
+
+  /* live view */
+  .stage{position:relative;background:#020A18;border:1px solid var(--line-2);
+    border-radius:12px;overflow:hidden;aspect-ratio:4/3;max-height:440px;
+    display:flex;align-items:center;justify-content:center}
+  .stage img{width:100%;height:100%;object-fit:contain;display:none}
+  .stage .placeholder{color:var(--faint);font-family:var(--mono);font-size:12px;
+    text-align:center;padding:30px;line-height:1.7}
+  .scanline{position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(0,0,0,.16) 3px 4px)}
+  .hud{position:absolute;top:10px;left:12px;right:12px;display:flex;
+    justify-content:space-between;font-family:var(--mono);font-size:11px;
+    color:var(--accent-soft);text-shadow:0 1px 4px #000;pointer-events:none}
+  .hud .rec{color:var(--accent-soft)}
+  .rec.live{color:var(--red)}
+  .rec.live::before{content:"\25CF";margin-right:5px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:.2}}
+
+  .progress{height:6px;background:var(--panel-2);border-radius:4px;margin-top:12px;
+    overflow:hidden;border:1px solid var(--line)}
+  .progress > i{display:block;height:100%;width:0;
+    background:linear-gradient(90deg,var(--autoliv-blue-br),var(--accent-soft));
+    transition:width .2s}
+  .progline{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:11px;color:var(--muted);margin-top:7px}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:6px}
+  @media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--panel);
+    border:1px solid var(--line);border-radius:11px;padding:15px 15px 13px;
+    position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(12,36,71,.05)}
+  .stat::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  .stat.v-peak::after{background:var(--c-vel)}
+  .stat.v-disp::after{background:var(--c-disp)}
+  .stat.v-drop::after{background:var(--c-drop)}
+  .stat.v-dur::after{background:var(--c-area)}
+  .stat .k{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted)}
+  .stat .v{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:7px}
+  .stat .u{font-size:11px;color:var(--faint);font-weight:400}
+  .stat.v-peak .v{color:var(--c-vel)} .stat.v-disp .v{color:var(--c-disp)}
+  .stat.v-drop .v{color:var(--c-drop)} .stat.v-dur .v{color:var(--c-area)}
+
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px}
+  @media(max-width:760px){.charts{grid-template-columns:1fr}}
+  .chartcard{background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px 10px;
+    box-shadow:0 2px 10px rgba(12,36,71,.05)}
+  .chartcard h3{margin:0 0 6px;font-family:var(--mono);font-size:11px;
+    letter-spacing:1.5px;text-transform:uppercase;color:var(--silver-ink)}
+  .chartcard .cwrap{height:200px}
+  .chartcard.wide{grid-column:1/-1}
+  .chartcard.wide .cwrap{height:260px}
+
+  .exportbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .exportbar a{font-family:var(--mono);font-size:12px;text-decoration:none;
+    border:1px solid var(--line-2);color:var(--ink);padding:11px 17px;border-radius:9px;
+    display:inline-flex;align-items:center;gap:8px;background:var(--panel-2);
+    transition:.15s}
+  .exportbar a.primary{background:linear-gradient(180deg,var(--accent-soft),var(--autoliv-blue));
+    color:#fff;border-color:rgba(0,45,107,.25);font-weight:700;
+    box-shadow:0 5px 14px rgba(10,77,168,.28)}
+  .exportbar a:hover{filter:brightness(1.06)}
+  .exportbar a.disabled{opacity:.4;pointer-events:none}
+
+  .console{margin-top:18px;background:#0C2447;border:1px solid var(--line-2);
+    border-radius:10px;font-family:var(--mono);font-size:11.5px;color:#AFC4E6;
+    padding:12px 14px;max-height:160px;overflow:auto;line-height:1.7}
+  .console .ts{color:#6E89B5}
+  .console .err{color:#FF8A95}
+  .section-title{font-family:var(--mono);font-size:11px;letter-spacing:2px;
+    text-transform:uppercase;color:var(--silver-ink);margin:28px 2px 12px;
+    display:flex;align-items:center;gap:9px}
+  .section-title::before{content:"";width:14px;height:2px;background:var(--accent)}
+  .hidden{display:none}
+
+  /* calibration toolbar */
+  .calbar{display:flex;align-items:center;justify-content:space-between;
+    gap:10px;margin-bottom:12px}
+  .steps{display:flex;gap:8px;flex-wrap:wrap}
+  .stepbtn{display:flex;align-items:center;gap:8px;background:var(--panel-2);
+    border:1px solid var(--line);color:var(--muted);font-family:var(--mono);
+    font-size:12px;padding:8px 12px;border-radius:9px;cursor:pointer;transition:.15s}
+  .stepbtn em{font-style:normal;color:var(--faint);font-size:10px}
+  .stepbtn .dot{display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;border-radius:50%;background:var(--line-2);
+    color:var(--ink);font-size:10px;font-weight:700}
+  .stepbtn.active{border-color:var(--accent);color:var(--ink);
+    box-shadow:0 0 0 3px rgba(46,111,214,.16)}
+  .stepbtn.active .dot{background:var(--accent);color:#fff}
+  .stepbtn.done .dot{background:var(--green);color:#06210f}
+  .stepbtn.done em{color:var(--green)}
+  .stepbtn:disabled{opacity:.45;cursor:not-allowed}
+  .resetcal{background:none;border:1px solid var(--line-2);color:var(--muted);
+    font-family:var(--mono);font-size:11px;padding:7px 11px;border-radius:8px;
+    cursor:pointer}
+  .resetcal:hover{border-color:var(--red);color:var(--red)}
+
+  #calCanvas{position:absolute;inset:0;width:100%;height:100%;
+    cursor:crosshair;display:none}
+  .calhelp{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:10px;
+    display:none}
+  .calhelp b{color:var(--accent-soft)}
+  .calhelp.show{display:block}
+
+  .calib-readout{margin-top:14px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:9px;padding:11px 13px}
+  .cr-row{display:flex;justify-content:space-between;font-family:var(--mono);
+    font-size:12px;color:var(--muted);padding:3px 0}
+  .cr-row b{color:var(--accent-soft)}
+  .hint{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.5;
+    font-family:var(--mono)}
+
+  /* setup steps guide */
+  .steps-guide{display:flex;flex-direction:column;gap:3px;margin-bottom:16px;
+    padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .step-item{display:flex;align-items:center;gap:10px;padding:6px 4px;
+    border-radius:7px;transition:.15s}
+  .step-item .stepnum{width:20px;height:20px;border-radius:50%;flex:none;
+    background:var(--panel-2);border:1px solid var(--line-2);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:700;font-size:10.5px;color:var(--faint);
+    transition:.15s}
+  .step-item .steplabel{font-size:12px;color:var(--faint);transition:.15s}
+  .step-item.active{background:rgba(10,77,168,.07)}
+  .step-item.active .stepnum{background:var(--accent);border-color:var(--accent);
+    color:#fff;box-shadow:0 0 0 3px rgba(10,77,168,.14)}
+  .step-item.active .steplabel{color:var(--ink);font-weight:600}
+  .step-item.done .stepnum{background:var(--green);border-color:var(--green);
+    color:#fff;font-size:0}
+  .step-item.done .stepnum::after{content:"\2713";font-size:11px}
+  .step-item.done .steplabel{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo-mark" title="Safety systems analysis">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2.5C7 4 4 5 4 5v6c0 5 3.4 7.7 8 9.5 4.6-1.8 8-4.5 8-9.5V5s-3-1-8-2.5Z"
+              stroke="#fff" stroke-width="1.6" stroke-linejoin="round" fill="rgba(255,255,255,.10)"/>
+        <circle cx="12" cy="11" r="3.1" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="txt">
+      <h1>Airbag Kinematics Analyzer</h1>
+      <div class="tag">Airbag Deployment Telemetry</div>
+    </div>
+  </div>
+  <div class="backend {{ 'demo' if demo else '' }}">
+    Engine&nbsp;<b>{{ backend }}</b>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- LEFT: config + upload -->
+  <div class="panel" id="cfgPanel">
+    <h2>Input &amp; Calibration</h2>
+    <div class="body">
+      <div class="steps-guide" id="stepsGuide">
+        <div class="step-item" id="stepUpload">
+          <span class="stepnum">1</span>
+          <span class="steplabel">Upload test footage</span>
+        </div>
+        <div class="step-item" id="stepDirection">
+          <span class="stepnum">2</span>
+          <span class="steplabel">Set direction &amp; OCR stride</span>
+        </div>
+        <div class="step-item" id="stepScale">
+          <span class="stepnum">3</span>
+          <span class="steplabel">Mark 2 points 100&nbsp;mm apart (scale)</span>
+        </div>
+        <div class="step-item" id="stepRim">
+          <span class="stepnum">4</span>
+          <span class="steplabel">Mark 1 point on the steering rim</span>
+        </div>
+        <div class="step-item" id="stepRun">
+          <span class="stepnum">5</span>
+          <span class="steplabel">Click Run Analysis</span>
+        </div>
+      </div>
+
+      <div class="drop" id="drop">
+        <div class="big">Drop test footage here</div>
+        <div class="small">or click to browse · mp4 / mov / avi / mkv</div>
+        <div class="fname" id="fname"></div>
+        <input type="file" id="file" accept="video/*" class="hidden">
+      </div>
+
+      <label>Deployment direction</label>
+      <select id="deployment_dir">
+        <option value="right-to-left" selected>right-to-left</option>
+        <option value="left-to-right">left-to-right</option>
+        <option value="top-to-bottom">top-to-bottom</option>
+        <option value="bottom-to-top">bottom-to-top</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label>Target mark distance (mm)</label>
+          <input id="known_mm" value="100">
+        </div>
+        <div>
+          <label>OCR stride</label>
+          <select id="ocr_stride">
+            <option value="5">5 — high precision</option>
+            <option value="10" selected>10 — optimal (recommended)</option>
+            <option value="15">15 — balanced</option>
+            <option value="20">20 — fastest</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="calib-readout">
+        <div class="cr-row"><span>Scale</span>
+          <b id="crScale">— mm/px</b></div>
+        <div class="cr-row"><span>Rim line Y</span>
+          <b id="crRim">— </b></div>
+      </div>
+
+      <button class="run" id="runBtn" disabled>Run analysis</button>
+      <div class="hint" id="runHint">Upload a video, then set the scale and rim
+        on the first frame.</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: live view + progress -->
+  <div>
+    <div class="panel">
+      <h2 id="stageTitle">Calibration &amp; Live View</h2>
+      <div class="body">
+        <div class="calbar" id="calbar">
+          <div class="steps">
+            <button class="stepbtn active" id="modeScale" data-mode="scale">
+              <span class="dot">1</span> Set scale
+              <em id="scaleState">click 2 marks</em>
+            </button>
+            <button class="stepbtn" id="modeRim" data-mode="rim">
+              <span class="dot">2</span> Set rim line
+              <em id="rimState">click 1 point</em>
+            </button>
+          </div>
+          <button class="resetcal" id="resetCal" title="Clear points">reset</button>
+        </div>
+
+        <div class="stage" id="stage">
+          <div class="placeholder" id="ph">Awaiting footage.<br>
+            Upload a video — its first frame appears here so you can set the
+            real-world scale and the steering-rim line before analysis.</div>
+          <img id="liveImg" alt="annotated frame">
+          <canvas id="calCanvas"></canvas>
+          <div class="scanline"></div>
+          <div class="hud">
+            <span id="hudL" class="rec">STANDBY</span>
+            <span id="hudR"></span>
+          </div>
+        </div>
+        <div class="calhelp" id="calHelp">
+          <b>Step 1 — Scale:</b> click the two physical marks that are
+          <span id="helpMm">100</span>&nbsp;mm apart. <b>Step 2 — Rim:</b>
+          click one point on the steering-wheel rim; a horizontal blue line is
+          drawn through it.
+        </div>
+
+        <div class="progress"><i id="bar"></i></div>
+        <div class="progline">
+          <span id="progTxt">idle</span>
+          <span id="progPct">0%</span>
+        </div>
+        <div class="console" id="console"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results" class="hidden" style="max-width:1240px;margin:0 auto">
+  <div class="section-title">Summary Metrics</div>
+  <div class="stats">
+    <div class="stat v-peak"><div class="k">Peak velocity</div>
+      <div class="v"><span id="sPeak">–</span> <span class="u">mm/s</span></div></div>
+    <div class="stat v-disp"><div class="k">Total displacement</div>
+      <div class="v"><span id="sDisp">–</span> <span class="u">mm</span></div></div>
+    <div class="stat v-drop"><div class="k">Max drop past rim</div>
+      <div class="v"><span id="sDrop">–</span> <span class="u">mm</span></div></div>
+    <div class="stat v-dur"><div class="k">Event duration</div>
+      <div class="v"><span id="sDur">–</span> <span class="u">ms</span></div></div>
+  </div>
+
+  <div class="section-title">Kinematic Profiles</div>
+  <div class="charts">
+    <div class="chartcard"><h3>Displacement (mm)</h3><div class="cwrap"><canvas id="cDisp"></canvas></div></div>
+    <div class="chartcard"><h3>Velocity (mm/s)</h3><div class="cwrap"><canvas id="cVel"></canvas></div></div>
+    <div class="chartcard"><h3>Vertical drop past rim (mm)</h3><div class="cwrap"><canvas id="cDrop"></canvas></div></div>
+    <div class="chartcard"><h3>Fabric area (mm²)</h3><div class="cwrap"><canvas id="cArea"></canvas></div></div>
+    <div class="chartcard wide"><h3>Velocity vs. displacement (up to peak displacement)</h3><div class="cwrap"><canvas id="cPhase"></canvas></div></div>
+  </div>
+
+  <div class="section-title">Export</div>
+  <div class="exportbar">
+    <a id="dlCsv" class="primary disabled" href="#">⬇ Export data (CSV)</a>
+    <a id="dlPng" class="disabled" href="#">⬇ Plots (PNG)</a>
+    <a id="dlVid" class="disabled" href="#">⬇ Annotated video (MP4)</a>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let selectedFile = null, jobId = null, es = null;
+let liveCharts = {};
+
+// calibration state -----------------------------------------------------
+let frameW = 0, frameH = 0;          // true video pixel dimensions
+let calMode = "scale";                // "scale" | "rim"
+let scalePts = [];                    // up to 2 {x,y} in TRUE pixel coords
+let rimPt = null;                     // {x,y} in true pixel coords
+let knownMM = 100;                    // real distance between the two marks
+let metersPerPixel = null;            // computed
+let rimYFrac = null;                  // computed
+const calImg = new Image();           // the first frame bitmap
+
+// ---------- setup steps guide ----------
+const STEP_ORDER = ["stepUpload","stepDirection","stepScale","stepRim","stepRun"];
+function setStepProgress(activeId){
+  const idx = STEP_ORDER.indexOf(activeId);
+  STEP_ORDER.forEach((id,i)=>{
+    const el = $(id); if(!el) return;
+    el.classList.remove("active","done");
+    if(idx===-1){ /* all done */ el.classList.add("done"); return; }
+    if(i<idx) el.classList.add("done");
+    else if(i===idx) el.classList.add("active");
+  });
+}
+setStepProgress("stepUpload");   // initial state on page load
+
+// ---------- file picking ----------
+const drop = $("drop"), fileInput = $("file");
+drop.onclick = () => fileInput.click();
+fileInput.onchange = e => uploadFile(e.target.files[0]);
+["dragover","dragenter"].forEach(ev=>drop.addEventListener(ev,e=>{
+  e.preventDefault();drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{
+  e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",e=>{ if(e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); });
+
+// ---------- console ----------
+function log(msg, isErr){
+  const c = $("console");
+  const t = new Date().toLocaleTimeString();
+  const line = document.createElement("div");
+  line.innerHTML = `<span class="ts">${t}</span>  ` +
+                   `<span class="${isErr?'err':''}">${msg}</span>`;
+  c.appendChild(line); c.scrollTop = c.scrollHeight;
+}
+
+// ---------- upload -> get first frame for calibration ----------
+async function uploadFile(f){
+  if(!f) return;
+  selectedFile = f;
+  $("fname").textContent = f.name + "  ·  " + (f.size/1048576).toFixed(1) + " MB";
+  resetCalibration();
+  setStepProgress("stepUpload");   // new upload in flight; old cal state doesn't count
+  $("results").classList.add("hidden"); destroyCharts();
+  $("console").innerHTML = "";
+  $("runBtn").disabled = true;
+  $("runHint").textContent = "Uploading & extracting first frame…";
+  log("Uploading " + f.name + " …");
+
+  const fd = new FormData();
+  fd.append("video", f);
+  let res;
+  try{
+    res = await fetch("/upload",{method:"POST",body:fd}).then(r=>r.json());
+  }catch(err){ log("Upload failed: "+err,true); return; }
+  if(res.error){ log("Upload error: "+res.error,true);
+    $("runHint").textContent = res.error; return; }
+
+  jobId = res.job_id; frameW = res.width; frameH = res.height;
+  log(`First frame ready · native ${frameW}×${frameH}px. Set scale, then rim.`);
+  setStepProgress("stepScale");   // upload + direction/stride steps complete
+
+  // show the first frame on the calibration canvas
+  $("ph").style.display = "none";
+  $("liveImg").style.display = "none";
+  calImg.onload = () => { setupCanvas(); redrawCal(); };
+  calImg.src = res.first_frame;
+  $("calbar").style.display = "flex";
+  $("calHelp").classList.add("show");
+  $("hudL").textContent = "CALIBRATE"; $("hudL").classList.remove("live");
+  setMode("scale");
+}
+
+// ---------- calibration canvas ----------
+const canvas = $("calCanvas");
+const ctx = canvas.getContext("2d");
+
+function setupCanvas(){
+  // match the canvas backing store to its displayed size for crisp drawing
+  const stage = $("stage");
+  const rect = stage.getBoundingClientRect();
+  canvas.width = rect.width; canvas.height = rect.height;
+  canvas.style.display = "block";
+}
+window.addEventListener("resize", ()=>{ if(calImg.src){ setupCanvas(); redrawCal(); }});
+
+// map a canvas click to TRUE video-pixel coordinates (image is letterboxed
+// with object-fit:contain inside the stage)
+function canvasToImage(cx, cy){
+  const cw = canvas.width, ch = canvas.height;
+  const scale = Math.min(cw/frameW, ch/frameH);   // contain
+  const dispW = frameW*scale, dispH = frameH*scale;
+  const offX = (cw-dispW)/2, offY = (ch-dispH)/2;
+  const ix = (cx-offX)/scale, iy = (cy-offY)/scale;
+  return {x: ix, y: iy, inBounds: ix>=0 && ix<=frameW && iy>=0 && iy<=frameH,
+          scale, offX, offY};
+}
+function imageToCanvas(ix, iy){
+  const cw = canvas.width, ch = canvas.height;
+  const scale = Math.min(cw/frameW, ch/frameH);
+  const offX = (cw-(frameW*scale))/2, offY = (ch-(frameH*scale))/2;
+  return {x: ix*scale+offX, y: iy*scale+offY};
+}
+
+canvas.addEventListener("click", e=>{
+  if(!calImg.src) return;
+  const r = canvas.getBoundingClientRect();
+  const p = canvasToImage(e.clientX-r.left, e.clientY-r.top);
+  if(!p.inBounds) return;
+
+  if(calMode==="scale"){
+    if(scalePts.length>=2) scalePts = [];
+    scalePts.push({x:p.x, y:p.y});
+    if(scalePts.length===2) computeScale();
+  }else{
+    rimPt = {x:p.x, y:p.y};
+    computeRim();
+  }
+  redrawCal();
+  updateRunGate();
+});
+
+function computeScale(){
+  knownMM = parseFloat($("known_mm").value) || 100;
+  const dx = scalePts[1].x-scalePts[0].x, dy = scalePts[1].y-scalePts[0].y;
+  const distPx = Math.hypot(dx,dy);
+  if(distPx<2){ metersPerPixel=null; return; }
+  metersPerPixel = (knownMM/1000)/distPx;   // meters per pixel
+  $("crScale").textContent = (metersPerPixel*1000).toFixed(4)+" mm/px";
+  $("scaleState").textContent = distPx.toFixed(0)+" px = "+knownMM+" mm";
+  $("modeScale").classList.add("done");
+  setStepProgress("stepRim");
+  // auto-advance to rim step the first time scale is set
+  if(!rimPt) setMode("rim");
+}
+function computeRim(){
+  rimYFrac = rimPt.y/frameH;
+  $("crRim").textContent = "y="+Math.round(rimPt.y)+" px ("+(rimYFrac*100).toFixed(1)+"%)";
+  $("rimState").textContent = "set";
+  $("modeRim").classList.add("done");
+  setStepProgress("stepRun");
+}
+
+function redrawCal(){
+  if(!calImg.src) return;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // draw the frame (contain)
+  const m = imageToCanvas(0,0), m2 = imageToCanvas(frameW,frameH);
+  ctx.drawImage(calImg, m.x, m.y, m2.x-m.x, m2.y-m.y);
+
+  // scale marks + connecting line
+  if(scalePts.length){
+    ctx.strokeStyle="#5BC8FF"; ctx.fillStyle="#5BC8FF"; ctx.lineWidth=2;
+    const cpts = scalePts.map(p=>imageToCanvas(p.x,p.y));
+    if(cpts.length===2){
+      ctx.beginPath(); ctx.moveTo(cpts[0].x,cpts[0].y);
+      ctx.lineTo(cpts[1].x,cpts[1].y); ctx.stroke();
+      const midx=(cpts[0].x+cpts[1].x)/2, midy=(cpts[0].y+cpts[1].y)/2;
+      ctx.font="12px JetBrains Mono"; ctx.fillStyle="#05122B";
+      const label=knownMM+" mm";
+      const w=ctx.measureText(label).width+10;
+      ctx.fillStyle="#5BC8FF"; ctx.fillRect(midx-w/2,midy-20,w,16);
+      ctx.fillStyle="#05122B"; ctx.textAlign="center";
+      ctx.fillText(label,midx,midy-8); ctx.textAlign="start";
+    }
+    cpts.forEach((c,i)=>{ ctx.beginPath(); ctx.arc(c.x,c.y,5,0,7); 
+      ctx.fillStyle="#5BC8FF"; ctx.fill();
+      ctx.fillStyle="#fff"; ctx.font="10px JetBrains Mono";
+      ctx.fillText(String(i+1), c.x+8, c.y-8); });
+  }
+  // rim line
+  if(rimPt){
+    const c = imageToCanvas(0,rimPt.y), c2 = imageToCanvas(frameW,rimPt.y);
+    ctx.strokeStyle="#2E6FD6"; ctx.lineWidth=2; ctx.setLineDash([8,5]);
+    ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c2.x,c2.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle="#2E6FD6"; ctx.font="11px JetBrains Mono";
+    ctx.fillText("steering rim", c.x+8, c.y-6);
+    const pc = imageToCanvas(rimPt.x,rimPt.y);
+    ctx.beginPath(); ctx.arc(pc.x,pc.y,5,0,7); ctx.fill();
+  }
+}
+
+// ---------- mode + reset ----------
+document.querySelectorAll(".stepbtn").forEach(b=>{
+  b.addEventListener("click",()=>setMode(b.dataset.mode));
+});
+function setMode(mode){
+  calMode = mode;
+  $("modeScale").classList.toggle("active", mode==="scale");
+  $("modeRim").classList.toggle("active", mode==="rim");
+}
+$("resetCal").onclick = resetCalibration;
+function resetCalibration(){
+  scalePts=[]; rimPt=null; metersPerPixel=null; rimYFrac=null;
+  $("crScale").textContent="— mm/px"; $("crRim").textContent="— ";
+  $("scaleState").textContent="click 2 marks"; $("rimState").textContent="click 1 point";
+  $("modeScale").classList.remove("done"); $("modeRim").classList.remove("done");
+  setMode("scale"); if(calImg.src) redrawCal(); updateRunGate();
+  setStepProgress(calImg.src ? "stepScale" : "stepUpload");
+}
+$("known_mm").addEventListener("input",()=>{ if(scalePts.length===2) computeScale(); redrawCal(); $("helpMm").textContent = $("known_mm").value||"100"; });
+
+function updateRunGate(){
+  const ready = metersPerPixel!=null && rimYFrac!=null;
+  $("runBtn").disabled = !ready;
+  $("runHint").textContent = ready
+    ? "Calibration set. Ready to run."
+    : "Set both the scale (2 marks) and the rim line (1 point) to continue.";
+}
+
+// ---------- run analysis (after calibration) ----------
+$("runBtn").onclick = async () => {
+  if(!jobId || metersPerPixel==null || rimYFrac==null) return;
+  $("runBtn").disabled = true;
+  $("results").classList.add("hidden"); destroyCharts();
+  $("calbar").style.display="none"; $("calHelp").classList.remove("show");
+  canvas.style.display="none";
+  $("stageTitle").textContent = "Live Deployment View";
+  $("hudL").textContent = "ANALYZING"; $("hudL").classList.add("live");
+
+  const body = {
+    deployment_dir: $("deployment_dir").value,
+    meters_per_pixel: metersPerPixel,
+    steering_rim_y_frac: rimYFrac,
+    ocr_stride: $("ocr_stride").value,
+    preview_stride: 3,
+  };
+  log(`Starting analysis · scale ${(metersPerPixel*1000).toFixed(4)} mm/px · rim y-frac ${rimYFrac.toFixed(3)}`);
+
+  let res;
+  try{
+    res = await fetch("/analyze/"+jobId,{method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body)}).then(r=>r.json());
+  }catch(err){ log("Could not start analysis: "+err,true);
+    $("runBtn").disabled=false; return; }
+  if(res.error){ log("Error: "+res.error,true); $("runBtn").disabled=false; return; }
+
+  prepLiveCharts();
+  openStream(jobId);
+  setStepProgress(null);   // all 5 steps complete
+};
+
+// ---------- SSE ----------
+function openStream(id){
+  if(es) es.close();
+  es = new EventSource("/stream/"+id);
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if(ev.type === "log"){ log(ev.message); }
+    else if(ev.type === "meta"){
+      log(`Resolution ${ev.width}×${ev.height} · ${ev.total_frames} frames · ${ev.fps.toFixed(0)} fps`);
+    }
+    else if(ev.type === "frame"){ onFrame(ev); }
+    else if(ev.type === "done"){ onDone(ev.result); es.close(); }
+    else if(ev.type === "error"){
+      log("ERROR: "+ev.message,true); es.close(); $("runBtn").disabled=false;
+      $("hudL").textContent="ERROR"; $("hudL").classList.remove("live");
+    }
+  };
+  es.onerror = () => { /* browser auto-retries; ignore transient */ };
+}
+
+function onFrame(ev){
+  if(ev.image && ev.image.length > 30){
+    const img = $("liveImg"); img.src = ev.image; img.style.display = "block";
+  }
+  $("bar").style.width = ev.pct + "%";
+  $("progPct").textContent = ev.pct + "%";
+  $("progTxt").textContent = `frame ${ev.frame} / ${ev.total}`;
+  const tt = (ev.time_sec==null)?"--":(ev.time_sec*1000).toFixed(1)+" ms";
+  const dd = (ev.drop_mm==null)?"--":ev.drop_mm.toFixed(1)+" mm";
+  $("hudR").textContent = `t=${tt}  drop=${dd}`;
+
+  // live-append drop reading as frames arrive (real-time spark).
+  // Flip sign so a drop BELOW the rim reads as NEGATIVE (curve dips down).
+  if(ev.time_sec!=null && ev.drop_mm!=null && liveCharts.drop){
+    const ch = liveCharts.drop;
+    ch.data.labels.push((ev.time_sec*1000).toFixed(1));  // ms
+    ch.data.datasets[0].data.push(-ev.drop_mm);          // mm, negative-down
+    ch.update("none");
+  }
+}
+
+function onDone(result){
+  log("Analysis complete · backend " + result.backend);
+  $("hudL").textContent = "DONE"; $("hudL").classList.remove("live");
+  $("bar").style.width = "100%"; $("progPct").textContent = "100%";
+  $("progTxt").textContent = "complete";
+  $("runBtn").disabled = false;
+
+  const s = result.summary;
+  $("sPeak").textContent = (s.peak_velocity_mps*1000).toFixed(0);
+  $("sDisp").textContent = s.total_displacement_mm.toFixed(1);
+  $("sDrop").textContent = s.max_drop_below_rim_mm.toFixed(1);
+  $("sDur").textContent  = s.duration_ms.toFixed(1);
+
+  drawFinalCharts(result.series);
+
+  $("dlCsv").href = "/download/"+jobId+"/csv"; $("dlCsv").classList.remove("disabled");
+  $("dlPng").href = "/download/"+jobId+"/plots"; $("dlPng").classList.remove("disabled");
+  if(result.paths && result.paths.video){
+    $("dlVid").href = "/download/"+jobId+"/video"; $("dlVid").classList.remove("disabled");
+  }
+  $("results").classList.remove("hidden");
+  $("results").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+// ---------- charts ----------
+const GRID="#DCE6F4", TICK="#5A6E90", ZEROLINE="#0A4DA8";
+
+// Plugin: draw a bold horizontal line at y=0 (the steering-rim reference).
+const zeroLinePlugin = {
+  id:"zeroLine",
+  afterDraw(chart, args, opts){
+    const y = chart.scales.y; if(!y) return;
+    if(y.min > 0 || y.max < 0) return;       // 0 not in view
+    const yPix = y.getPixelForValue(0);
+    const {left,right} = chart.chartArea;
+    const c = chart.ctx;
+    c.save();
+    c.beginPath(); c.moveTo(left,yPix); c.lineTo(right,yPix);
+    c.lineWidth=2; c.strokeStyle=ZEROLINE; c.setLineDash([6,4]); c.stroke();
+    c.setLineDash([]);
+    c.font="9px JetBrains Mono"; c.fillStyle=ZEROLINE; c.textAlign="right";
+    c.fillText("rim (0)", right-4, yPix-4);
+    c.restore();
+  }
+};
+
+function baseOpts(){
+  return {responsive:true,maintainAspectRatio:false,animation:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{grid:{color:GRID},ticks:{color:TICK,maxTicksLimit:6,
+         font:{family:'JetBrains Mono',size:9}},
+         title:{display:true,text:'Time (ms)',color:TICK,
+                font:{family:'JetBrains Mono',size:9}}},
+      y:{grid:{color:GRID},ticks:{color:TICK,font:{family:'JetBrains Mono',size:9}}}
+    }};
+}
+function mkChart(cid,color){
+  return new Chart($(cid),{type:"line",
+    data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:2,
+      pointRadius:0,tension:.25,fill:false}]},
+    options:baseOpts()});
+}
+// Drop chart: highlighted zero line + fill the negative region (below rim).
+function mkDropChart(cid){
+  const color = "#E0922A";
+  return new Chart($(cid),{type:"line",
+    data:{labels:[],datasets:[{data:[],borderColor:color,borderWidth:2,
+      pointRadius:0,tension:.25,fill:{target:{value:0}},
+      backgroundColor:"rgba(224,146,42,.18)"}]},
+    options:baseOpts(),
+    plugins:[zeroLinePlugin]});
+}
+// Phase chart: velocity vs. displacement, numeric (not time-based) x-axis.
+function mkPhaseChart(cid,color){
+  return new Chart($(cid),{type:"line",
+    data:{datasets:[{data:[],borderColor:color,borderWidth:2,
+      pointRadius:0,tension:.2,fill:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{type:'linear',grid:{color:GRID},ticks:{color:TICK,
+           font:{family:'JetBrains Mono',size:9}},
+           title:{display:true,text:'Displacement (mm)',color:TICK,
+                  font:{family:'JetBrains Mono',size:9}}},
+        y:{grid:{color:GRID},ticks:{color:TICK,font:{family:'JetBrains Mono',size:9}},
+           title:{display:true,text:'Velocity (mm/s)',color:TICK,
+                  font:{family:'JetBrains Mono',size:9}}}
+      }}});
+}
+function prepLiveCharts(){
+  destroyCharts();
+  // Build empty charts up front so the drop curve can stream in real time,
+  // and reveal the results panel immediately (summary fills on completion).
+  liveCharts.disp = mkChart("cDisp","#1E7FD6");
+  liveCharts.vel  = mkChart("cVel","#E23B4E");
+  liveCharts.drop = mkDropChart("cDrop");
+  liveCharts.area = mkChart("cArea","#7A52D6");
+  liveCharts.phase = mkPhaseChart("cPhase","#1FA463");
+  $("results").classList.remove("hidden");
+}
+function pushLive(){ /* superseded by inline append in onFrame */ }
+
+function drawFinalCharts(series){
+  destroyCharts();
+  const t = series.time_sec.map(v=>(v*1000).toFixed(1));        // s -> ms
+  liveCharts.disp = mkChart("cDisp","#1E7FD6");
+  liveCharts.vel  = mkChart("cVel","#E23B4E");
+  liveCharts.drop = mkDropChart("cDrop");
+  liveCharts.area = mkChart("cArea","#7A52D6");
+  liveCharts.phase = mkPhaseChart("cPhase","#1FA463");
+  setData(liveCharts.disp, t, series.displacement_m.map(v=>v*1000));      // m -> mm
+  setData(liveCharts.vel,  t, series.velocity_mps.map(v=>v*1000));        // m/s -> mm/s
+  setData(liveCharts.drop, t, series.drop_below_rim_m.map(v=>-v*1000));   // m -> mm, flipped
+  setData(liveCharts.area, t, series.area_m2.map(v=>v*1e6));              // m² -> mm²
+
+  // Velocity vs. displacement, truncated server-side at peak displacement
+  // (before it plateaus/repeats), plotted as {x,y} points on a linear axis.
+  const pd = series.phase_displacement_m || [], pv = series.phase_velocity_mps || [];
+  const phasePts = pd.map((d,i)=>({x:d*1000, y:(pv[i]||0)*1000}));
+  liveCharts.phase.data.datasets[0].data = phasePts;
+  liveCharts.phase.update();
+}
+function setData(ch,labels,data){ ch.data.labels=labels;
+  ch.data.datasets[0].data=data; ch.update(); }
+function destroyCharts(){ Object.values(liveCharts).forEach(c=>c&&c.destroy());
+  liveCharts={}; }
+</script>
+</body>
+</html>
